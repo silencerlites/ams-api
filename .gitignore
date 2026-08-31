@@ -1,0 +1,120 @@
+# ==============================
+# Node.js
+# ==============================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==============================
+# Environment files / secrets
+# ==============================
+.env
+.env.*
+!.env.example
+
+# ==============================
+# Build output
+# ==============================
+dist/
+build/
+coverage/
+
+# Quasar
+.quasar/
+dist/spa/
+dist/pwa/
+dist/ssr/
+dist/bex/
+dist/electron/
+dist/capacitor/
+dist/cordova/
+
+# ==============================
+# Logs
+# ==============================
+logs/
+*.log
+
+# ==============================
+# Runtime / temp files
+# ==============================
+tmp/
+temp/
+*.tmp
+*.temp
+*.pid
+*.pid.lock
+
+# ==============================
+# Cache
+# ==============================
+.cache/
+.npm/
+.eslintcache
+.vite/
+.vite-cache/
+
+# ==============================
+# IDE / Editor
+# ==============================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# ==============================
+# Firebase
+# ==============================
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+
+# Firebase local emulator data
+firebase-export-*/
+.emulator-data/
+
+# ==============================
+# Service account / credentials
+# NEVER commit these
+# ==============================
+*service-account*.json
+serviceAccountKey.json
+firebase-adminsdk*.json
+google-credentials.json
+credentials.json
+secrets.json
+
+# ==============================
+# Certificates / private keys
+# ==============================
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# ==============================
+# Mongo / local data
+# ==============================
+data/
+db/
+mongo-data/
+
+# ==============================
+# Docker
+# ==============================
+docker-compose.override.yml
+
+# ==============================
+# OS
+# ==============================
+.DS_Store
+Thumbs.db
+desktop.ini

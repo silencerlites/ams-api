@@ -1,0 +1,30 @@
+{
+  "name": "ams-api",
+  "version": "1.0.0",
+  "description": "AMS Enterprise Authentication API",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "seed:auth": "node src/seeds/authorization.seed.js",
+    "seed:super-admin": "node src/seeds/super-admin.seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.9.3",
+    "nodemailer": "^7.0.5",
+    "validator": "^13.15.15",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
