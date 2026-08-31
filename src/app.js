@@ -1,29 +1,13 @@
-import express
-  from 'express';
-
-import helmet
-  from 'helmet';
-
-import cors
-  from 'cors';
-
-import compression
-  from 'compression';
-
-import routes
-  from './routes/index.js';
-
-import env
-  from './config/env.js';
-
-import {
-  authRateLimiter
-} from './middleware/rate-limit.middleware.js';
-
-import {
-  notFound,
-  errorHandler
-} from './middleware/error.middleware.js';
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import compression from 'compression';
+import routes from './routes/index.js';
+import env from './config/env.js';
+import { authRateLimiter } from './middleware/rate-limit.middleware.js';
+import { notFound, errorHandler } from './middleware/error.middleware.js';
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './config/swagger.js';
 
 const app = express();
 
@@ -62,6 +46,10 @@ app.use(
   })
 );
 
+
+/**
+ * Health Check
+ */
 app.get(
   '/api/v1/health',
   (req, res) => {
@@ -77,12 +65,51 @@ app.get(
   }
 );
 
+/**
+ * Swagger JSON
+ */
+app.get(
+  '/api/v1/docs.json',
+
+  (req, res) => {
+    res.json(
+      swaggerSpec
+    );
+  }
+);
+
+
+/**
+ * Swagger UI
+ */
+app.use(
+  '/api/v1/docs',
+
+  swaggerUi.serve,
+
+  swaggerUi.setup(
+    swaggerSpec,
+    {
+      explorer: true,
+
+      customSiteTitle:
+        'SRJJ AMS API Documentation'
+    }
+  )
+);
+
+/**
+ * API Routes
+ */
 app.use(
   '/api/v1',
   authRateLimiter,
   routes
 );
 
+/**
+ * Error handling
+ */
 app.use(notFound);
 
 app.use(errorHandler);
