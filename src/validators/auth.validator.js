@@ -18,14 +18,22 @@ export const loginSchema = z.object({
 });
 
 export const refreshSchema = z.object({
-  refresh_token: z.string().min(1)
+  refresh_token: z.string({ required_error: 'Refresh token is required.', invalid_type_error: 'Refresh token must be a string.'}).min(1, 'Refresh token is required.').max(4096, 'Invalid refresh token.')
 });
 
 export const logoutSchema = z.object({
   refresh_token: z.string().min(1)
 });
 
-export const verifyEmailSchema = z.object({ token: z.string().min(20) });
+export const verifyEmailSchema =
+  z.object({
+    oob_code:
+      z.string()
+        .min(
+          1,
+          'Verification code is required.'
+        )
+  });
 
 export const verifyLoginOtpSchema = z.object({
   challenge_id: z.string().uuid(),
@@ -66,3 +74,4 @@ export const changePasswordSchema = z.object({
       message: 'Password confirmation does not match.',
       path: ['password_confirmation']
     });
+

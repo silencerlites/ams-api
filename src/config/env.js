@@ -55,8 +55,23 @@ const env = Object.freeze({
   },
 
   mail: {
+    apiKey: process.env.RESEND_API_KEY,
     fromName: process.env.MAIL_FROM_NAME || 'SRJJ AMS',
     fromAddress: process.env.MAIL_FROM_ADDRESS
+  },
+
+   firebase: {
+    projectId:
+      process.env.FIREBASE_PROJECT_ID,
+
+    clientEmail:
+      process.env.FIREBASE_CLIENT_EMAIL,
+
+    privateKey:
+      process.env.FIREBASE_PRIVATE_KEY,
+
+    webApiKey:
+      process.env.FIREBASE_WEB_API_KEY
   },
 
   loginOtp: {
