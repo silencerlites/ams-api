@@ -1,16 +1,26 @@
-import mongoose from 'mongoose';
+import BaseModel from './base.model.js';
 
-const roleHasPermissionSchema = new mongoose.Schema(
-  {
-    role_id: { type: Number, required: true, index: true },
-    permission_id: { type: Number, required: true, index: true }
-  },
-  {
-    timestamps: false,
-    versionKey: false
+export default class RoleHasPermissionModel extends BaseModel {
+  constructor({
+    role_id,
+    permission_id
+  }) {
+    super();
+
+    this.role_id = Number(role_id);
+    this.permission_id = Number(permission_id);
   }
-);
 
-roleHasPermissionSchema.index({ role_id: 1, permission_id: 1 },{ unique: true });
-const RoleHasPermission = mongoose.model('RoleHasPermission', roleHasPermissionSchema,'role_has_permissions');
-export default RoleHasPermission;
+  toFirestore() {
+    return RoleHasPermissionModel.clean({ role_id: this.role_id, permission_id: this.permission_id });
+  }
+
+  static fromFirestore(doc) {
+    if (!doc.exists) return null;
+    return new RoleHasPermissionModel( doc.data() )
+  }
+  
+  static documentId({ role_id, permission_id }) {
+    return `${role_id}_${permission_id}`;
+  }
+}

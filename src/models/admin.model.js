@@ -1,37 +1,43 @@
-import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
-import env from '../config/env.js';
+import BaseModel from './base.model.js';
 
-const adminSchema = new mongoose.Schema(
-  {
-    id: { type: String, required: true, unique: true, immutable: true, index: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
-    is_active: { type: Boolean, default: false, index: true },
-    email_verified_at: { type: Date, default: null },
-    password: { type: String, required: true, select: false },
-    token_version: { type: Number, default: 0 },
-    deleted_at: { type: Date, default: null, index: true }
-  },
-  {
-    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-    versionKey: false
+export default class AdminModel extends BaseModel {
+  constructor({
+    id,
+    uid,
+    email,
+    is_active = false,
+    token_version = 0,
+    deleted_at = null,
+    created_at = new Date(),
+    updated_at = new Date()
+  }) {
+    super();
+
+    this.id = String(id);
+    this.uid = uid;
+    this.email = email.trim().toLowerCase();
+    this.is_active = is_active;
+    this.token_version = token_version;
+    this.deleted_at = deleted_at;
+    this.created_at = created_at;
+    this.updated_at = updated_at;
   }
-);
 
-adminSchema.pre('save', async function () {
-  if (!this.isModified('password')) return;
-  this.password = await bcrypt.hash( this.password, env.bcryptSaltRounds );
-});
-
-adminSchema.methods.comparePassword = async function (plainPassword) {
-  return bcrypt.compare( plainPassword, this.password );
-};
-
-adminSchema.set('toJSON', {
-  transform(_document, returned) { delete returned.password;
-    return returned;
+  toFirestore() {
+    return AdminModel.clean({
+      id: this.id,
+      uid: this.uid,
+      email: this.email,
+      is_active: this.is_active,
+      token_version: this.token_version,
+      deleted_at: this.deleted_at,
+      created_at: this.created_at,
+      updated_at: this.updated_at
+    });
   }
-});
 
-const Admin = mongoose.model('Admin', adminSchema, 'admins');
-export default Admin;
+  static fromFirestore(doc) {
+    if (!doc.exists) { return null; }
+    return new AdminModel({ ...doc.data(), id: doc.id });
+  }
+}

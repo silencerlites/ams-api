@@ -1,17 +1,40 @@
-import mongoose from 'mongoose';
+import BaseModel from './base.model.js';
 import { ROLE_VALUES } from '../enums/role.enum.js';
 
-const roleSchema = new mongoose.Schema(
-  {
-    id: { type: Number, required: true, unique: true, enum: ROLE_VALUES },
-    name: { type: String, required: true, unique: true, trim: true },
-    guard_name: { type: String, default: 'api' }
-  },
-  {
-    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-    versionKey: false
-  }
-);
+export default class RoleModel extends BaseModel {
+  constructor({
+    id,
+    name,
+    guard_name = 'api',
+    created_at = new Date(),
+    updated_at = new Date()
+  }) {
+    super();
 
-const Role = mongoose.model('Role', roleSchema,'roles');
-export default Role;
+    const roleId = Number(id);
+    if (!ROLE_VALUES.includes(roleId)) { throw new Error('Invalid role id.') }
+
+    this.id = roleId;
+    this.name = name.trim();
+    this.guard_name = guard_name;
+    this.created_at = created_at;
+    this.updated_at = updated_at;
+  }
+
+  toFirestore() {
+    return RoleModel.clean({
+      id: this.id,
+      name: this.name,
+      guard_name: this.guard_name,
+      created_at: this.created_at,
+      updated_at: this.updated_at
+    });
+  }
+
+  static fromFirestore(doc) {
+    if (!doc.exists) return null;
+    return new RoleModel({ ...doc.data(), id: doc.data().id ?? Number(doc.id) });
+  }
+  
+  static documentId(id) { return String(id) }
+}

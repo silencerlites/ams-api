@@ -1,22 +1,18 @@
-import AdminModel from '../models/admin.model.js';
-import AdminProfile from '../models/admin-profile.model.js';
 import authService from '../services/auth.service.js';
-import emailVerificationService from '../services/email-verification.service.js';
-import accessTokenService from '../services/access-token.service.js';
-import refreshTokenService from '../services/refresh-token.service.js';
 import loginOtpService from '../services/login-otp.service.js';
-import passwordResetService from '../services/password-reset.service.js';
+
+import adminRepository from '../repositories/admin.repository.js';
+import adminProfileRepository from '../repositories/admin-profile.repository.js';
 
 import {
   registerSchema,
   loginSchema,
-  logoutSchema,
-  verifyEmailSchema,
   verifyLoginOtpSchema,
   resendLoginOtpSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-  changePasswordSchema
+  changePasswordSchema,
+  verifyEmailSchema
 } from '../validators/auth.validator.js';
 
 import asyncHandler from '../utils/async-handler.js';
@@ -24,248 +20,480 @@ import { success } from '../utils/response.js';
 import AppError from '../errors/app-error.js';
 import env from '../config/env.js';
 
+
+const validate = (schema, payload) => {
+  const result =
+    schema.safeParse(payload);
+
+  if (!result.success) {
+    throw new AppError(
+      'Validation failed.',
+      422,
+      'VALIDATION_ERROR',
+      result.error.flatten()
+    );
+  }
+
+  return result.data;
+};
+
+
+/*
+ * ======================================================
+ * REGISTER
+ * ======================================================
+ */
+
 const register = asyncHandler(
   async (req, res) => {
-    const validation = registerSchema.safeParse(req.body);
+    const data =
+      validate(
+        registerSchema,
+        req.body
+      );
 
-    if (!validation.success) {
-      throw new AppError('Validation failed.', 422, 'VALIDATION_ERROR', validation.error.flatten());
-    }
+    const result =
+      await authService.register(
+        data
+      );
 
-    const result = await authService.register(validation.data);
     return success(res, {
       status: 201,
-      message: 'Registration successful. Verify your email and wait for administrator approval.',
+
+      message:
+        'Registration successful. Verify your email and wait for administrator approval.',
+
       data: result
     });
   }
 );
+
+
+/*
+ * ======================================================
+ * LOGIN
+ * ======================================================
+ */
 
 const login = asyncHandler(
   async (req, res) => {
-    const validation = loginSchema.safeParse(req.body);
+    const data =
+      validate(
+        loginSchema,
+        req.body
+      );
 
-    if (!validation.success) {
-      throw new AppError('Validation failed.', 422, 'VALIDATION_ERROR', validation.error.flatten());
-    }
+    const result =
+      await authService.login({
+        ...data,
 
-    const result = await authService.login({
-      ...validation.data,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
+        ipAddress:
+          req.ip,
+
+        userAgent:
+          req.get('user-agent')
+      });
+
+    return success(res, {
+      message:
+        'Login successful.',
+
+      data:
+        result
     });
-
-    return success(res, { message: 'Login successful.', data: result });
   }
 );
+
+
+/*
+ * ======================================================
+ * VERIFY LOGIN OTP
+ * ======================================================
+ */
 
 const verifyLoginOtp = asyncHandler(
   async (req, res) => {
-    const validation = verifyLoginOtpSchema.safeParse(req.body);
+    const data =
+      validate(
+        verifyLoginOtpSchema,
+        req.body
+      );
 
-    if (!validation.success) {
-      throw new AppError('Validation failed.', 422, 'VALIDATION_ERROR', validation.error.flatten());
-    }
+    const result =
+      await authService
+        .verifyLoginOtp({
+          challengeId:
+            data.challenge_id,
 
-    const result = await authService.verifyLoginOtp({
-      challengeId: validation.data.challenge_id,
-      otp: validation.data.otp,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
-    });
-    return success(res, { message: 'Login successful.', data: result });
-  }
-);
-
-const resendLoginOtp = asyncHandler(
-  async (req, res) => {
-    const validation = resendLoginOtpSchema.safeParse(req.body);
-
-    if (!validation.success) {
-      throw new AppError('Validation failed.', 422, 'VALIDATION_ERROR', validation.error.flatten());
-    }
-
-    const result = await loginOtpService.resend({
-      challengeId: validation.data.challenge_id,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
-    });
+          otp:
+            data.otp
+        });
 
     return success(res, {
-      message: 'A new OTP has been sent to your registered email address.',
-      data: {
-        challenge_id: result.challengeId,
-        expires_at: result.expiresAt,
-        resend_count: result.resendCount,
-        remaining_resends: Math.max(env.loginOtp.maxResends - result.resendCount, 0),
-        resend_available_after_seconds: env.loginOtp.resendCooldownSeconds
-      }
+      message:
+        'Login successful.',
+
+      data:
+        result
     });
   }
 );
 
-const refresh = asyncHandler(
-  async (req, res) => {
-    const { refresh_token } = req.body;
 
-    if (!refresh_token) {
-      throw new AppError('Refresh token is required.', 422, 'REFRESH_TOKEN_REQUIRED');
-    }
+/*
+ * ======================================================
+ * RESEND LOGIN OTP
+ * ======================================================
+ */
 
-    const result = await authService.refresh({
-      refreshToken: refresh_token,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
-    });
-
-    return success(res, {
-      message: 'Token refreshed successfully.',
-      data: result
-    });
-  }
-);
-
-const logout = asyncHandler(
-  async (req, res) => {
-    if (!req.auth) {
-      throw new AppError('Authentication required.', 401, 'AUTHENTICATION_REQUIRED');
-    }
-    const validation = logoutSchema.safeParse(req.body);
-    if (!validation.success) {
-      throw new AppError('Refresh token is required.', 422, 'VALIDATION_ERROR', validation.error.flatten());
-    }
-    const { refresh_token } = validation.data;
-
-    /**
-     * Revoke only the CURRENT access token.
-     *
-     * This prevents this device/session
-     * from using /view immediately.
-     */
-    await accessTokenService.revoke(req.auth);
-
-    /**
-     * Revoke only the supplied CURRENT
-     * refresh token.
-     *
-     * Other devices remain logged in.
-     */
-    await refreshTokenService.revoke(refresh_token);
-
-    return success(res, { message: 'Logout successful.' });
-  }
-);
-
-const logoutAll = asyncHandler(
-  async (req, res) => {
-    if (!req.auth) {
-      throw new AppError('Authentication required.', 401, 'AUTHENTICATION_REQUIRED');
-    }
-
-    const { sub: modelId, model_type: modelType } = req.auth;
-
-    /**
-     * Revoke the CURRENT access token.
-     */
-    await accessTokenService.revoke(req.auth);
-
-    /**
-     * Revoke ALL refresh tokens
-     * for ALL devices/sessions.
-     */
-    await refreshTokenService.revokeAll({ modelType, modelId });
-
-    return success(res, { message: 'Logged out from all sessions.' });
-  }
-);
-
-const verifyEmail = asyncHandler(
-  async (req, res) => {
-    const validation = verifyEmailSchema.safeParse(req.query);
-
-    if (!validation.success) {
-      throw new AppError('Verification token is required.', 422, 'VALIDATION_ERROR');
-    }
-
-    await emailVerificationService.verify(validation.data.token);
-    return success(res, { message: 'Email successfully verified. Your account is awaiting administrator approval.' });
-  }
-);
-
-const resendVerification = asyncHandler(
-  async (req, res) => {
-    const { email } = loginSchema.pick({ email: true }).parse(req.body);
-
-    /*
-     * Implementation deliberately returns
-     * a generic result regardless of whether
-     * the account exists.
-     */
-    const Admin = AdminModel.default;
-    const admin = await Admin.findOne({ email, deleted_at: null });
-
-    if (admin && !admin.email_verified_at) await emailVerificationService.sendAdminVerification(admin);
-
-    return success(res, { message: 'If the account exists and requires verification, a verification email has been sent.' });
-  }
-);
-
-const forgotPassword = asyncHandler(
-  async (req, res) => {
-    const validation = forgotPasswordSchema.safeParse(req.body);
-
-    if (!validation.success) {
-      throw new AppError('Validation failed.', 422, 'VALIDATION_ERROR', validation.error.flatten())
-    }
-
-    await passwordResetService.request({ email: validation.data.email });
-
-    /**
-     * Always return the same result
-     * even if account doesn't exist.
-     */
-    return success(res, { message: 'If the account exists, password reset instructions have been sent to the registered email address.' });
-  }
-);
-
-const resetPassword = asyncHandler(
-  async (req, res) => {
-    const validation = resetPasswordSchema.safeParse(req.body);
-
-    if (!validation.success) {
-      throw new AppError('Validation failed.', 422, 'VALIDATION_ERROR', validation.error.flatten());
-    }
-
-    await passwordResetService.reset({
-      token: validation.data.token,
-      password: validation.data.password
-    });
-
-    return success(res, { message: 'Password reset successfully. Please login again using your new password.' });
-  }
-);
-
-const changePassword = asyncHandler(
+const resendLoginOtp =
+  asyncHandler(
     async (req, res) => {
+      const data =
+        validate(
+          resendLoginOtpSchema,
+          req.body
+        );
 
-      const validation = changePasswordSchema.safeParse(req.body);
 
-      if (!validation.success) {
-        throw new AppError('Validation failed.', 422, 'VALIDATION_ERROR',validation.error.flatten());
-      }
+      const result =
+        await authService
+          .resendLoginOtp({
+            challengeId:
+              data.challenge_id,
 
-      const adminId = req.auth.sub;
-      await authService.changePassword({ adminId, currentPassword:validation.data.current_password, newPassword:validation.data.password});
-      return success(res, { message: 'Password changed successfully. Please login again.' });
+            ipAddress:
+              req.ip,
+
+            userAgent:
+              req.get(
+                'user-agent'
+              )
+          });
+
+
+      return success(res, {
+        message:
+          'A new OTP has been sent to your email address.',
+
+        data:
+          result
+      });
     }
   );
 
-const view = asyncHandler(
+
+/*
+ * ======================================================
+ * FORGOT PASSWORD
+ * ======================================================
+ */
+
+const forgotPassword = asyncHandler(
   async (req, res) => {
-    const profile = await AdminProfile.findOne({ admin_id: req.account.id }).lean();
-    return success(res, { data: { account:req.account, profile } });
+    const data =
+      validate(
+        forgotPasswordSchema,
+        req.body
+      );
+
+    try {
+      await authService
+        .sendPasswordReset({
+          email:
+            data.email,
+
+          ipAddress:
+            req.ip,
+
+          userAgent:
+            req.get(
+              'user-agent'
+            )
+        });
+
+    } catch (error) {
+      /*
+       * Prevent account enumeration.
+       */
+      console.error(
+        'Password reset request failed:',
+        error
+      );
+    }
+
+    return success(res, {
+      message:
+        'If the account exists, password reset instructions have been sent to the registered email address.'
+    });
   }
 );
+
+
+/*
+ * ======================================================
+ * RESET PASSWORD
+ * ======================================================
+ */
+
+const resetPassword = asyncHandler(
+  async (req, res) => {
+    const data =
+      validate(
+        resetPasswordSchema,
+        req.body
+      );
+
+    await authService
+      .resetPassword({
+        oobCode:
+          data.token,
+
+        newPassword:
+          data.password
+      });
+
+    return success(res, {
+      message:
+        'Password reset successfully. Please login using your new password.'
+    });
+  }
+);
+
+
+/*
+ * ======================================================
+ * CHANGE PASSWORD
+ * ======================================================
+ */
+
+const changePassword = asyncHandler(
+  async (req, res) => {
+    const data =
+      validate(
+        changePasswordSchema,
+        req.body
+      );
+
+    if (!req.auth?.uid) {
+      throw new AppError(
+        'Authentication required.',
+        401,
+        'AUTHENTICATION_REQUIRED'
+      );
+    }
+
+    await authService
+      .changePassword({
+        uid:
+          req.auth.uid,
+
+        currentPassword:
+          data.current_password,
+
+        newPassword:
+          data.password
+      });
+
+    return success(res, {
+      message:
+        'Password changed successfully. Please login again.'
+    });
+  }
+);
+
+
+/*
+ * ======================================================
+ * VERIFY EMAIL
+ * ======================================================
+ */
+
+const verifyEmail = asyncHandler(
+  async (req, res) => {
+    const data =
+      validate(
+        verifyEmailSchema,
+        req.body
+      );
+
+    await authService
+      .verifyEmail(
+        data.oob_code
+      );
+
+    return success(res, {
+      message:
+        'Email verified successfully. Your account is awaiting administrator approval.'
+    });
+  }
+);
+
+/*
+ * ======================================================
+ * RESEND VERIFICATION
+ * ======================================================
+ */
+
+const resendVerification = asyncHandler(
+  async (req, res) => {
+    const data =
+      validate(
+        loginSchema,
+        req.body
+      );
+
+    try {
+      await authService
+        .resendVerification({
+          email:
+            data.email,
+
+          password:
+            data.password
+        });
+    } catch (error) {
+      /*
+       * Prevent account enumeration.
+       */
+      console.error(
+        'Verification resend failed:',
+        error.code ||
+          error.message
+      );
+    }
+
+    return success(res, {
+      message:
+        'If the account exists and requires verification, a verification email has been sent.'
+    });
+  }
+);
+
+
+/*
+ * ======================================================
+ * LOGOUT
+ * ======================================================
+ */
+
+const logout = asyncHandler(
+  async (req, res) => {
+    if (!req.auth?.uid) {
+      throw new AppError(
+        'Authentication required.',
+        401,
+        'AUTHENTICATION_REQUIRED'
+      );
+    }
+
+    /*
+     * Normal logout is performed
+     * client-side using Firebase signOut().
+     */
+
+    return success(res, {
+      message:
+        'Logout successful.'
+    });
+  }
+);
+
+
+/*
+ * ======================================================
+ * LOGOUT ALL
+ * ======================================================
+ */
+
+const logoutAll = asyncHandler(
+  async (req, res) => {
+    if (!req.auth?.uid) {
+      throw new AppError(
+        'Authentication required.',
+        401,
+        'AUTHENTICATION_REQUIRED'
+      );
+    }
+
+    await authService
+      .logoutAll(
+        req.auth.uid
+      );
+
+    return success(res, {
+      message:
+        'Logged out from all sessions.'
+    });
+  }
+);
+
+
+/*
+ * ======================================================
+ * VIEW ACCOUNT
+ * ======================================================
+ */
+
+const view = asyncHandler(
+  async (req, res) => {
+    const result =
+      await authService.view({
+        uid:
+          req.auth.uid
+      });
+
+    return success(res, {
+      message:
+        'Account retrieved successfully.',
+
+      data:
+        result
+    });
+  }
+);
+
+const exchangeToken =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const {
+        custom_token
+      } =
+        req.body;
+
+
+      if (!custom_token) {
+        throw new AppError(
+          'Custom token is required.',
+          422,
+          'VALIDATION_ERROR'
+        );
+      }
+
+
+      const result =
+        await authService
+          .exchangeCustomToken(
+            custom_token
+          );
+
+
+      return success(
+        res,
+        {
+          message:
+            'Firebase token exchanged successfully.',
+
+          data:
+            result
+        }
+      );
+    }
+  );
+
 
 export default {
   register,
@@ -275,10 +503,10 @@ export default {
   forgotPassword,
   resetPassword,
   changePassword,
-  refresh,
-  logout,
-  logoutAll,
   verifyEmail,
   resendVerification,
+  logout,
+  logoutAll,
+  exchangeToken,
   view
 };

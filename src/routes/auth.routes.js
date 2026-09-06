@@ -1,10 +1,18 @@
 import { Router } from 'express';
+
 import authController from '../controllers/auth.controller.js';
+
 import authenticate from '../middleware/authenticate.middleware.js';
 import ensureActive from '../middleware/ensure-active.middleware.js';
-import { loginRateLimiter } from '../middleware/rate-limit.middleware.js';
+
+import {
+  authRateLimiter,
+  loginRateLimiter
+} from '../middleware/rate-limit.middleware.js';
+
 
 const router = Router();
+
 
 /**
  * @swagger
@@ -26,7 +34,12 @@ const router = Router();
  *       422:
  *         description: Validation failed.
  */
-router.post( '/register', authController.register );
+router.post(
+  '/register',
+  authRateLimiter,
+  authController.register
+);
+
 
 /**
  * @swagger
@@ -50,7 +63,12 @@ router.post( '/register', authController.register );
  *       423:
  *         description: Account temporarily locked.
  */
-router.post( '/login', loginRateLimiter, authController.login );
+router.post(
+  '/login',
+  loginRateLimiter,
+  authController.login
+);
+
 
 /**
  * @swagger
@@ -69,8 +87,46 @@ router.post( '/login', loginRateLimiter, authController.login );
  *         description: OTP verified successfully.
  *       400:
  *         description: Invalid or expired OTP.
+ *       401:
+ *         description: Invalid OTP.
+ *       429:
+ *         description: Maximum OTP attempts exceeded.
  */
-router.post( '/verify-login-otp', loginRateLimiter, authController.verifyLoginOtp );
+router.post(
+  '/verify-login-otp',
+  loginRateLimiter,
+  authController.verifyLoginOtp
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/exchange-token:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Exchange Firebase custom token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - custom_token
+ *             properties:
+ *               custom_token:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Firebase ID token generated successfully.
+ *       401:
+ *         description: Invalid custom token.
+ */
+router.post(
+  '/exchange-token',
+  authRateLimiter,
+  authController.exchangeToken
+);
+
 
 /**
  * @swagger
@@ -87,12 +143,17 @@ router.post( '/verify-login-otp', loginRateLimiter, authController.verifyLoginOt
  *     responses:
  *       200:
  *         description: OTP resent successfully.
+ *       423:
+ *         description: Account locked or resend limit reached.
  *       429:
  *         description: Resend cooldown active.
- *       423:
- *         description: Resend limit reached.
  */
-router.post( '/resend-login-otp', loginRateLimiter, authController.resendLoginOtp );
+router.post(
+  '/resend-login-otp',
+  loginRateLimiter,
+  authController.resendLoginOtp
+);
+
 
 /**
  * @swagger
@@ -109,8 +170,15 @@ router.post( '/resend-login-otp', loginRateLimiter, authController.resendLoginOt
  *     responses:
  *       200:
  *         description: Password reset request accepted.
+ *       422:
+ *         description: Validation failed.
  */
-router.post( '/forgot-password', authController.forgotPassword );
+router.post(
+  '/forgot-password',
+  authRateLimiter,
+  authController.forgotPassword
+);
+
 
 /**
  * @swagger
@@ -128,11 +196,16 @@ router.post( '/forgot-password', authController.forgotPassword );
  *       200:
  *         description: Password reset successfully.
  *       400:
- *         description: Invalid or expired reset token.
+ *         description: Invalid or expired reset code.
  *       422:
  *         description: Validation failed.
  */
-router.post( '/reset-password',  authController.resetPassword);
+router.post(
+  '/reset-password',
+  authRateLimiter,
+  authController.resetPassword
+);
+
 
 /**
  * @swagger
@@ -153,30 +226,18 @@ router.post( '/reset-password',  authController.resetPassword);
  *         description: Password changed successfully.
  *       401:
  *         description: Authentication required.
+ *       403:
+ *         description: Account inactive.
  *       422:
  *         description: Invalid current password.
  */
-router.post( '/change-password', authenticate, ensureActive, authController.changePassword );
+router.post(
+  '/change-password',
+  authenticate,
+  ensureActive,
+  authController.changePassword
+);
 
-/**
- * @swagger
- * /api/v1/auth/refresh:
- *   post:
- *     tags: [Authentication]
- *     summary: Refresh tokens
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RefreshTokenRequest'
- *     responses:
- *       200:
- *         description: Tokens refreshed successfully.
- *       401:
- *         description: Invalid refresh token.
- */
-router.post( '/refresh', authController.refresh );
 
 /**
  * @swagger
@@ -184,19 +245,21 @@ router.post( '/refresh', authController.refresh );
  *   post:
  *     tags: [Authentication]
  *     summary: Logout current session
+ *     description: Client should also call Firebase signOut().
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RefreshTokenRequest'
  *     responses:
  *       200:
- *         description: Logged out successfully.
+ *         description: Logout acknowledged successfully.
+ *       401:
+ *         description: Authentication required.
  */
-router.post( '/logout', authenticate, authController.logout );  
+router.post(
+  '/logout',
+  authenticate,
+  authController.logout
+);
+
 
 /**
  * @swagger
@@ -208,29 +271,49 @@ router.post( '/logout', authenticate, authController.logout );
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: All sessions logged out successfully.
+ *         description: All Firebase sessions revoked successfully.
+ *       401:
+ *         description: Authentication required.
  */
-router.post( '/logout-all', authenticate, authController.logoutAll);
+router.post(
+  '/logout-all',
+  authenticate,
+  authController.logoutAll
+);
+
 
 /**
  * @swagger
  * /api/v1/auth/verify-email:
- *   get:
+ *   post:
  *     tags: [Authentication]
  *     summary: Verify email
- *     parameters:
- *       - in: query
- *         name: token
- *         required: true
- *         schema:
- *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - oob_code
+ *             properties:
+ *               oob_code:
+ *                 type: string
+ *                 example: FirebaseOobCode
  *     responses:
  *       200:
  *         description: Email verified successfully.
  *       400:
- *         description: Invalid or expired token.
+ *         description: Invalid or expired verification code.
+ *       422:
+ *         description: Validation failed.
  */
-router.get( '/verify-email', authController.verifyEmail );
+router.post(
+  '/verify-email',
+  authRateLimiter,
+  authController.verifyEmail
+);
+
 
 /**
  * @swagger
@@ -243,12 +326,19 @@ router.get( '/verify-email', authController.verifyEmail );
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/ForgotPasswordRequest'
+ *             $ref: '#/components/schemas/LoginRequest'
  *     responses:
  *       200:
  *         description: Verification request accepted.
+ *       422:
+ *         description: Validation failed.
  */
-router.post( '/resend-verification', authController.resendVerification );
+router.post(
+  '/resend-verification',
+  authRateLimiter,
+  authController.resendVerification
+);
+
 
 /**
  * @swagger
@@ -263,7 +353,17 @@ router.post( '/resend-verification', authController.resendVerification );
  *         description: Current account returned successfully.
  *       401:
  *         description: Authentication required.
+ *       403:
+ *         description: Account inactive.
+ *       404:
+ *         description: Account not found.
  */
-router.get( '/view', authenticate, ensureActive, authController.view );
+router.get(
+  '/view',
+  authenticate,
+  ensureActive,
+  authController.view
+);
+
 
 export default router;
