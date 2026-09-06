@@ -1,18 +1,40 @@
-import mongoose from 'mongoose';
+import BaseModel from './base.model.js';
 import { MODEL_TYPE_VALUES } from '../constants/model-types.js';
 
-const userHasRoleSchema = new mongoose.Schema(
-  {
-    role_id: { type: Number, required: true, index: true },
-    model_type: { type: String, required: true, enum: MODEL_TYPE_VALUES, index: true },
-    model_id: { type: String, required: true, index: true }
-  },
-  {
-    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-    versionKey: false
-  }
-);
+export default class UserHasRoleModel extends BaseModel {
+  constructor({
+    role_id,
+    model_type,
+    model_id,
+    created_at = new Date(),
+    updated_at = new Date()
+  }) {
+    super();
 
-userHasRoleSchema.index({ role_id: 1, model_type: 1, model_id: 1 }, { unique: true });
-const UserHasRole = mongoose.model('UserHasRole', userHasRoleSchema, 'user_has_roles');
-export default UserHasRole;
+    if (!MODEL_TYPE_VALUES.includes(model_type)) { throw new Error('Invalid model_type.') }
+    this.role_id = Number(role_id);
+    this.model_type = model_type;
+    this.model_id = String(model_id);
+    this.created_at = created_at;
+    this.updated_at = updated_at;
+  }
+
+  toFirestore() {
+    return UserHasRoleModel.clean({
+      role_id: this.role_id,
+      model_type: this.model_type,
+      model_id: this.model_id,
+      created_at: this.created_at,
+      updated_at: this.updated_at
+    });
+  }
+
+  static fromFirestore(doc) {
+    if (!doc.exists) return null;
+    return new UserHasRoleModel(doc.data())
+  }
+
+  static documentId({ role_id, model_type, model_id }) {
+    return `${model_type}_${model_id}_${role_id}`;
+  }
+}

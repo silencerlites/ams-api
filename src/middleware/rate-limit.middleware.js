@@ -2,28 +2,51 @@ import {
   rateLimit
 } from 'express-rate-limit';
 
+
+const baseOptions = {
+  standardHeaders: 'draft-8',
+  legacyHeaders: false
+};
+
+
 export const authRateLimiter =
-  rateLimit({ 
-    windowMs: 15 * 60 * 1000,
-    limit: 100,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    message: { 
+  rateLimit({
+    ...baseOptions,
+
+    windowMs:
+      15 * 60 * 1000,
+
+    limit:
+      100,
+
+    message: {
       success: false,
-      message: 'Too many requests. Please try again later.',
-      code: 'TOO_MANY_REQUESTS' }
+      message:
+        'Too many requests. Please try again later.',
+      code:
+        'TOO_MANY_REQUESTS'
+    }
   });
+
 
 export const loginRateLimiter =
   rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 20,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    skipSuccessfulRequests: true,
+    ...baseOptions,
+
+    windowMs:
+      15 * 60 * 1000,
+
+    limit:
+      20,
+
+    skipSuccessfulRequests:
+      true,
+
     message: {
       success: false,
-      message: 'Too many authentication attempts.',
-      code: 'LOGIN_RATE_LIMITED'
+      message:
+        'Too many authentication attempts. Please try again later.',
+      code:
+        'LOGIN_RATE_LIMITED'
     }
   });

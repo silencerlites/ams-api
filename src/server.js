@@ -4,42 +4,42 @@ import app
 import env
   from './config/env.js';
 
-import {
-  connectDatabase,
-  disconnectDatabase
-} from './config/database.js';
-
 import mailService
   from './services/mail.service.js';
 
+
 let server;
+
 
 async function bootstrap() {
   try {
-    await connectDatabase();
-
     try {
       await mailService
         .verifyConnection();
 
       console.log(
-        'SMTP connection verified.'
+        'Mail service ready.'
       );
+
     } catch (error) {
       console.warn(
-        'SMTP verification failed:',
+        'Mail service verification failed:',
         error.message
       );
     }
 
-    server = app.listen(
-      env.port,
-      () => {
-        console.log(
-          `AMS API running on port ${env.port}`
-        );
-      }
-    );
+
+    server =
+      app.listen(
+        env.port,
+        '0.0.0.0',
+        () => {
+          console.log(
+            `AMS API running on port ${env.port}`
+          );
+        }
+      );
+
   } catch (error) {
     console.error(
       'Application startup failed:',
@@ -50,35 +50,45 @@ async function bootstrap() {
   }
 }
 
-async function shutdown(signal) {
+
+async function shutdown(
+  signal
+) {
   console.log(
     `${signal} received. Shutting down...`
   );
 
   if (server) {
     server.close(
-      async () => {
-        await disconnectDatabase();
-
+      () => {
         process.exit(0);
       }
     );
-  } else {
-    await disconnectDatabase();
 
-    process.exit(0);
+    return;
   }
+
+  process.exit(0);
 }
+
 
 process.on(
   'SIGTERM',
-  () => shutdown('SIGTERM')
+  () =>
+    shutdown(
+      'SIGTERM'
+    )
 );
+
 
 process.on(
   'SIGINT',
-  () => shutdown('SIGINT')
+  () =>
+    shutdown(
+      'SIGINT'
+    )
 );
+
 
 process.on(
   'unhandledRejection',
@@ -89,6 +99,7 @@ process.on(
     );
   }
 );
+
 
 process.on(
   'uncaughtException',
@@ -101,5 +112,6 @@ process.on(
     process.exit(1);
   }
 );
+
 
 bootstrap();

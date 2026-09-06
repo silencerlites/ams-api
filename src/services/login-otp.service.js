@@ -1,214 +1,402 @@
-import env from '../config/env.js';
-import LoginOtp from '../models/login-otp.model.js';
-import AdminProfile from '../models/admin-profile.model.js';
-import mailService from './mail.service.js';
+import crypto from 'crypto';
+
+import loginOtpRepository from '../repositories/login-otp.repository.js';
+import accountStatusService from './account-status.service.js';
+
 import AppError from '../errors/app-error.js';
-import Admin from '../models/admin.model.js';
-import loginAttemptService from './login-attempt.service.js';
-import { generateOtp, randomUuid, sha256 } from '../utils/crypto.js';
-import { loginOtpTemplate } from '../templates/login-otp.template.js';
+
+import {
+  ACCOUNT_STATUS
+} from '../constants/account-status.js';
+
+import env from '../config/env.js';
+
 
 class LoginOtpService {
 
-  async create({ modelType, modelId, email, ipAddress, userAgent,
-  // Important for resend
-  resendCount = 0,
-  lastResentAt = null }) {
-  /**
-   * Invalidate previous unused OTPs.
-   */
-  await LoginOtp.updateMany(
-    {
-      model_type: modelType,
-      model_id: modelId,
-      used_at: null
-    },
-    {
-      $set: { used_at: new Date() }
-    }
-  );
+  generateOtp() {
+    return crypto
+      .randomInt(
+        100000,
+        1000000
+      )
+      .toString();
+  }
 
-  const otp = generateOtp();
-  const challengeId = randomUuid();
-  const expiresAt = new Date( Date.now() + env.loginOtp.expiresMinutes * 60 * 1000 );
 
-  await LoginOtp.create({
-    model_type: modelType,
-    model_id: modelId,
-    challenge_id: challengeId,
-    otp_hash: sha256(otp),
-    attempts: 0,
-    resend_count: resendCount,
-    last_resent_at: lastResentAt,
-    expires_at: expiresAt,
-    ip_address: ipAddress || null,
-    user_agent: userAgent || null
-  });
+  hashOtp(otp) {
+    return crypto
+      .createHash('sha256')
+      .update(String(otp))
+      .digest('hex');
+  }
 
-  const profile = await AdminProfile.findOne({ admin_id: modelId }).lean();
-  const template = loginOtpTemplate({
-      firstName: profile?.first_name || 'User',
-      otp,
-      expiresMinutes: env.loginOtp.expiresMinutes
+
+  generateChallengeId() {
+    return crypto.randomUUID();
+  }
+
+
+  async create({
+    modelType,
+    modelId,
+    ipAddress = null,
+    userAgent = null,
+    resendCount = 0
+  }) {
+    await loginOtpRepository
+      .invalidateUnused(
+        modelType,
+        modelId
+      );
+
+    const otp =
+      this.generateOtp();
+
+    const challengeId =
+      this.generateChallengeId();
+
+    const expiresAt =
+      new Date(
+        Date.now() +
+        env.loginOtp.expiresMinutes *
+        60 *
+        1000
+      );
+
+    await loginOtpRepository.create({
+      model_type:
+        modelType,
+
+      model_id:
+        modelId,
+
+      challenge_id:
+        challengeId,
+
+      otp_hash:
+        this.hashOtp(otp),
+
+      attempts:
+        0,
+
+      resend_count:
+        resendCount,
+
+      last_resent_at:
+        null,
+
+      expires_at:
+        expiresAt,
+
+      verified_at:
+        null,
+
+      used_at:
+        null,
+
+      ip_address:
+        ipAddress,
+
+      user_agent:
+        userAgent
     });
 
-  await mailService.send({ to: email, ...template });
-  return { challengeId, expiresAt, resendCount };
-}
+    return {
+      challengeId,
+      otp,
+      expiresAt
+    };
+  }
 
-  async verify({ challengeId, otp }) {
-    const challenge = await LoginOtp.findOne({
-        challenge_id: challengeId,
-        used_at: null });
+
+  async verify({
+    challengeId,
+    otp
+  }) {
+    const challenge =
+      await loginOtpRepository
+        .findByChallengeId(
+          challengeId
+        );
 
     if (!challenge) {
-      throw new AppError('OTP challenge is invalid or expired.', 400, 'INVALID_OTP_CHALLENGE');
-    }
-
-    if ( challenge.expires_at <= new Date() ) {
-      challenge.used_at = new Date();
-      await challenge.save();
-      throw new AppError( 'OTP has expired.', 400, 'OTP_EXPIRED' );
-    }
-
-    if (challenge.attempts >= env.loginOtp.maxAttempts) {
-      challenge.used_at = new Date();
-      await challenge.save();
-      throw new AppError('Maximum OTP attempts exceeded.', 429, 'OTP_MAX_ATTEMPTS');
-    }
-
-    const providedHash = sha256(otp);
-
-    if ( providedHash !== challenge.otp_hash ) {
-      challenge.attempts += 1;
-      await challenge.save();
-      const remaining = env.loginOtp.maxAttempts - challenge.attempts;
-      throw new AppError('Invalid OTP.', 401, 'INVALID_OTP', { remaining_attempts: Math.max( remaining, 0 ) });
-    }
-
-    challenge.verified_at = new Date();
-    challenge.used_at = new Date();
-    await challenge.save();
-    return challenge;
-  }
-
-async resend({ challengeId, ipAddress, userAgent }) {
-  /**
-   * We intentionally find even a used OTP,
-   * because max OTP attempts may have already
-   * invalidated it.
-   */
-  const oldChallenge = await LoginOtp.findOne({ challenge_id: challengeId });
-  if (!oldChallenge) {
-    throw new AppError( 'OTP challenge does not exist.', 400, 'INVALID_OTP_CHALLENGE' );
-  }
-
-  /**
-   * Find account.
-   */
-  const admin = await Admin.findOne({
-      id: oldChallenge.model_id,
-      deleted_at: null
-    });
-
-  if (!admin) { 
-    throw new AppError( 'Account not found.', 404, 'ACCOUNT_NOT_FOUND' );
-  }
-
-  /**
-   * Check whether the account is already
-   * temporarily locked.
-   *
-   * This will also automatically unlock
-   * the account once the configured
-   * lock duration has passed.
-   */
-  const lockStatus = await loginAttemptService.isCurrentlyLocked(
-        oldChallenge.model_type,
-        oldChallenge.model_id );
-
-  if (lockStatus.locked) {
-    throw new AppError( 'Account is temporarily locked.', 423, 'ACCOUNT_LOCKED', { unlock_at: lockStatus.unlockAt } );
-  }
-
-  /**
-   * =========================================
-   * 1-MINUTE RESEND COOLDOWN
-   * =========================================
-   */
-  if (oldChallenge.last_resent_at) {
-    const cooldownMs = env.loginOtp.resendCooldownSeconds * 1000;
-    const nextAllowedAt = oldChallenge.last_resent_at.getTime() + cooldownMs;
-
-    if ( Date.now() < nextAllowedAt ) {
-      const remainingSeconds = Math.ceil(( nextAllowedAt - Date.now()) / 1000 );
-      throw new AppError(`Please wait ${remainingSeconds} seconds before requesting another OTP.`, 429, 'OTP_RESEND_COOLDOWN',
-        { retry_after_seconds: remainingSeconds,
-          retry_at: new Date(nextAllowedAt) }
+      throw new AppError(
+        'Invalid login challenge.',
+        400,
+        'INVALID_LOGIN_CHALLENGE'
       );
     }
+
+
+    if (challenge.used_at) {
+      throw new AppError(
+        'Login challenge has already been used.',
+        400,
+        'LOGIN_CHALLENGE_USED'
+      );
+    }
+
+
+    if (
+      challenge.expires_at <
+      new Date()
+    ) {
+      await loginOtpRepository
+        .markUsed(
+          challengeId
+        );
+
+      throw new AppError(
+        'Login OTP has expired.',
+        400,
+        'LOGIN_OTP_EXPIRED'
+      );
+    }
+
+
+    if (
+      challenge.attempts >=
+      env.loginOtp.maxAttempts
+    ) {
+      await loginOtpRepository
+        .markUsed(
+          challengeId
+        );
+
+      throw new AppError(
+        'Maximum OTP attempts reached.',
+        429,
+        'LOGIN_OTP_MAX_ATTEMPTS'
+      );
+    }
+
+
+    const otpHash =
+      this.hashOtp(otp);
+
+    const valid =
+      crypto.timingSafeEqual(
+        Buffer.from(
+          otpHash,
+          'hex'
+        ),
+        Buffer.from(
+          challenge.otp_hash,
+          'hex'
+        )
+      );
+
+
+    if (!valid) {
+      const updated =
+        await loginOtpRepository
+          .incrementAttempts(
+            challengeId
+          );
+
+      if (
+        updated &&
+        updated.attempts >=
+        env.loginOtp.maxAttempts
+      ) {
+        await loginOtpRepository
+          .markUsed(
+            challengeId
+          );
+
+        throw new AppError(
+          'Maximum OTP attempts reached.',
+          429,
+          'LOGIN_OTP_MAX_ATTEMPTS'
+        );
+      }
+
+      throw new AppError(
+        'Invalid login OTP.',
+        400,
+        'INVALID_LOGIN_OTP'
+      );
+    }
+
+
+    await loginOtpRepository
+      .markVerified(
+        challengeId
+      );
+
+    return {
+      modelType:
+        challenge.model_type,
+
+      modelId:
+        challenge.model_id
+    };
   }
 
-  /**
-   * Calculate next resend count.
-   */
-  const nextResendCount = oldChallenge.resend_count + 1;
 
-  /**
-   * =========================================
-   * MAX 3 RESENDS
-   * =========================================
-   *
-   * On resend #3:
-   * lock the account.
-   */
-  if ( nextResendCount >= env.loginOtp.maxResends ) {
-    oldChallenge.resend_count = nextResendCount;
-    oldChallenge.last_resent_at = new Date();
-    oldChallenge.used_at = new Date();
+async resend({
+  challengeId,
+  ipAddress = null,
+  userAgent = null
+}) {
+  const challenge =
+    await loginOtpRepository
+      .findByChallengeId(
+        challengeId
+      );
 
-    await oldChallenge.save();
 
-    const lock = await loginAttemptService.lockAccount(
-          oldChallenge.model_type,
-          oldChallenge.model_id );
-
-    throw new AppError('Maximum OTP resend attempts exceeded. Your account has been temporarily locked.', 423, 'OTP_RESEND_LIMIT_EXCEEDED',
-      { resend_count: nextResendCount,
-        max_resends:env.loginOtp.maxResends,
-        unlock_at: lock.unlockAt
-      }
+  if (!challenge) {
+    throw new AppError(
+      'Invalid login challenge.',
+      400,
+      'INVALID_LOGIN_CHALLENGE'
     );
   }
 
-  /**
-   * Mark old challenge as used.
-   */
-  oldChallenge.used_at = new Date();
-  oldChallenge.last_resent_at = new Date();
-  oldChallenge.resend_count = nextResendCount;
-  await oldChallenge.save();
 
-  /**
-   * Generate NEW challenge.
-   *
-   * IMPORTANT:
-   * Carry the resend_count forward.
-   *
-   * Otherwise users could bypass
-   * the resend limit.
+  const now =
+    new Date();
+
+
+  const cooldownMs =
+    env.loginOtp
+      .resendCooldownSeconds *
+    1000;
+
+
+  if (
+    challenge.last_resent_at &&
+    now.getTime() -
+      challenge.last_resent_at.getTime() <
+      cooldownMs
+  ) {
+    throw new AppError(
+      'Please wait before requesting another OTP.',
+      429,
+      'LOGIN_OTP_RESEND_COOLDOWN'
+    );
+  }
+
+
+  const resendCount =
+    Number(
+      challenge.resend_count ?? 0
+    ) + 1;
+
+
+  if (
+    resendCount >=
+    env.loginOtp.maxResends
+  ) {
+    await loginOtpRepository
+      .markUsed(
+        challengeId
+      );
+
+
+    await accountStatusService
+      .setStatus({
+        modelType:
+          challenge.model_type,
+
+        modelId:
+          challenge.model_id,
+
+        status:
+          AccountStatus.LOCKED
+      });
+
+
+    throw new AppError(
+      'Maximum OTP resend attempts reached. Account temporarily locked.',
+      423,
+      'LOGIN_OTP_MAX_RESENDS'
+    );
+  }
+
+
+  /*
+   * Mark old challenge used.
    */
-  return this.create({
-    modelType: oldChallenge.model_type,
-    modelId: oldChallenge.model_id,
-    email: admin.email,
-    ipAddress,
-    userAgent,
-    resendCount: nextResendCount,
-    lastResentAt: new Date()
-  });
+  await loginOtpRepository
+    .markUsed(
+      challengeId,
+      {
+        resend_count:
+          resendCount,
+
+        last_resent_at:
+          now
+      }
+    );
+
+
+  /*
+   * Create new challenge.
+   */
+  const result =
+    await this.create({
+      modelType:
+        challenge.model_type,
+
+      modelId:
+        challenge.model_id,
+
+      ipAddress,
+
+      userAgent,
+
+      resendCount
+    });
+
+
+  return {
+    challengeId:
+      result.challengeId,
+
+    otp:
+      result.otp,
+
+    expiresAt:
+      result.expiresAt,
+
+    resendCount,
+
+    modelType:
+      challenge.model_type,
+
+    modelId:
+      challenge.model_id
+  };
 }
 
+
+  async invalidate(
+    challengeId
+  ) {
+    const challenge =
+      await loginOtpRepository
+        .findByChallengeId(
+          challengeId
+        );
+
+    if (!challenge) {
+      return false;
+    }
+
+
+    if (!challenge.used_at) {
+      await loginOtpRepository
+        .markUsed(
+          challengeId
+        );
+    }
+
+    return true;
+  }
 }
+
 
 export default new LoginOtpService();

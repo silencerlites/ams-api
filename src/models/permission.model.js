@@ -1,16 +1,36 @@
-import mongoose from 'mongoose';
+import BaseModel from './base.model.js';
 
-const permissionSchema = new mongoose.Schema(
-  {
-    id: { type: Number, required: true, unique: true },
-    name: { type: String, required: true, unique: true, trim: true },
-    guard_name: { type: String, default: 'api' }
-  },
-  {
-    timestamps: true,
-    versionKey: false
+export default class PermissionModel extends BaseModel {
+  constructor({
+    id,
+    name,
+    guard_name = 'api',
+    created_at = new Date(),
+    updated_at = new Date()
+  }) {
+    super();
+
+    this.id = Number(id);
+    this.name = name.trim();
+    this.guard_name = guard_name;
+
+    this.created_at = created_at;
+    this.updated_at = updated_at;
   }
-);
 
-const Permission = mongoose.model('Permission', permissionSchema,'permissions');
-export default Permission;
+  toFirestore() {
+    return PermissionModel.clean({
+      id: this.id,
+      name: this.name,
+      guard_name: this.guard_name,
+      created_at: this.created_at,
+      updated_at: this.updated_at
+    });
+  }
+
+  static fromFirestore(doc) {
+    if (!doc.exists) return null;
+    return new PermissionModel({ ...doc.data(), id: doc.data().id ?? Number(doc.id) });
+  }
+  static documentId(id) { return String(id); }
+}

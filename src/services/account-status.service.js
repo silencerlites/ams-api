@@ -1,52 +1,156 @@
-import Admin from '../models/admin.model.js';
-import UserHasStatus from '../models/user-has-status.model.js';
+// src/services/account-status.service.js
 
-import { AccountStatus, statusIsActive } from '../enums/account-status.enum.js';
-import { MODEL_TYPES } from '../constants/model-types.js';
+import adminRepository from '../repositories/admin.repository.js';
+import userHasStatusRepository from '../repositories/user-has-status.repository.js';
+
+import {
+  AccountStatus,
+  statusIsActive
+} from '../enums/account-status.enum.js';
+
+import {
+  MODEL_TYPES
+} from '../constants/model-types.js';
+
+import AppError from '../errors/app-error.js';
+
 
 class AccountStatusService {
 
-  async setStatus({ modelType, modelId, status, session = null }) {
-    const result = await UserHasStatus.findOneAndUpdate(
-      { model_type: modelType, model_id: modelId },
-      { $set: { status } },
-      { returnDocument: 'after', upsert: true, session, setDefaultsOnInsert: true });
+  async setStatus({
+    modelType,
+    modelId,
+    status,
+    transaction = null
+  }) {
+    const result =
+      await userHasStatusRepository.upsert(
+        {
+          model_type: modelType,
+          model_id: modelId,
+          status
+        },
+        transaction
+      );
 
-    await this.syncAccountActivity({ modelType, modelId, status, session });
+    await this.syncAccountActivity({
+      modelType,
+      modelId,
+      status,
+      transaction
+    });
+
     return result;
   }
 
-  async syncAccountActivity({ modelType, modelId, status, session = null }) {
-    const isActive = statusIsActive(status);
+
+  async syncAccountActivity({
+    modelType,
+    modelId,
+    status,
+    transaction = null
+  }) {
+    const isActive =
+      statusIsActive(status);
 
     switch (modelType) {
-      case MODEL_TYPES.ADMIN:
-        await Admin.updateOne(
-          { id: modelId },
-          { $set: { is_active: isActive, ...(status === AccountStatus.DELETED ? { deleted_at: new Date() } : {}) } },
-          { session });
+      case MODEL_TYPES.ADMIN: {
+        const payload = {
+          is_active:
+            isActive,
 
-        break;
+          ...(status ===
+          AccountStatus.DELETED
+            ? {
+                deleted_at:
+                  new Date()
+              }
+            : {})
+        };
 
-      default: throw new Error(`Unsupported model type: ${modelType}`);
+        await adminRepository.update(
+          modelId,
+          payload,
+          transaction
+        );
+
+        return;
+      }
+
+
+      default:
+        throw new AppError(
+          `Unsupported model type: ${modelType}`,
+          400,
+          'ACCOUNT_TYPE_NOT_SUPPORTED'
+        );
     }
   }
 
-  async getStatus(modelType, modelId) {
-    return UserHasStatus.findOne({ model_type: modelType, model_id: modelId }).lean();
+
+  async getStatus(
+    modelType,
+    modelId
+  ) {
+    return userHasStatusRepository
+      .findByModel(
+        modelType,
+        modelId
+      );
   }
 
-  async activate(modelType, modelId) {
-    return this.setStatus({ modelType, modelId, status: AccountStatus.ACTIVE });
+
+  async activate(
+    modelType,
+    modelId
+  ) {
+    return this.setStatus({
+      modelType,
+      modelId,
+      status:
+        AccountStatus.ACTIVE
+    });
   }
 
-  async lock(modelType, modelId) {
-    return this.setStatus({ modelType, modelId, status: AccountStatus.LOCKED });
+
+  async lock(
+    modelType,
+    modelId
+  ) {
+    return this.setStatus({
+      modelType,
+      modelId,
+      status:
+        AccountStatus.LOCKED
+    });
   }
 
-  async deactivate(modelType, modelId) {
-    return this.setStatus({ modelType, modelId, status: AccountStatus.DEACTIVATED });
+
+  async deactivate(
+    modelType,
+    modelId
+  ) {
+    return this.setStatus({
+      modelType,
+      modelId,
+      status:
+        AccountStatus.DEACTIVATED
+    });
+  }
+
+
+  async markDeleted(
+    modelType,
+    modelId
+  ) {
+    return this.setStatus({
+      modelType,
+      modelId,
+      status:
+        AccountStatus.DELETED
+    });
   }
 }
+
 
 export default new AccountStatusService();
