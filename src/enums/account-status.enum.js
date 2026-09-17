@@ -14,9 +14,7 @@ export const AccountStatusName = Object.freeze({
   [AccountStatus.DELETED]: 'Deleted'
 });
 
-export const ACCOUNT_STATUS_VALUES = Object.values(
-  AccountStatus
-);
+export const ACCOUNT_STATUS_VALUES = Object.values(AccountStatus);
 
 export function statusIsActive(status) {
   return status === AccountStatus.ACTIVE;

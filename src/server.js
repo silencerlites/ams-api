@@ -5,30 +5,49 @@ import env
   from './config/env.js';
 
 import mailService
-  from './services/mail.service.js';
+  from './services/mail/mail.service.js';
 
 
 let server;
 
 
+/*
+ * ======================================================
+ * BOOTSTRAP
+ * ======================================================
+ */
+
 async function bootstrap() {
   try {
+
+    /*
+     * Verify active mail provider.
+     *
+     * The API should still start if
+     * the mail provider is temporarily
+     * unavailable.
+     */
     try {
       await mailService
         .verifyConnection();
 
       console.log(
-        'Mail service ready.'
+        `Mail service ready using ${env.mail.driver}.`
       );
 
     } catch (error) {
       console.warn(
-        'Mail service verification failed:',
-        error.message
+        `Mail service verification failed (${env.mail.driver}):`,
+        error instanceof Error
+          ? error.message
+          : error
       );
     }
 
 
+    /*
+     * Start HTTP server.
+     */
     server =
       app.listen(
         env.port,
@@ -36,6 +55,10 @@ async function bootstrap() {
         () => {
           console.log(
             `AMS API running on port ${env.port}`
+          );
+
+          console.log(
+            `Environment: ${env.nodeEnv}`
           );
         }
       );
@@ -51,6 +74,12 @@ async function bootstrap() {
 }
 
 
+/*
+ * ======================================================
+ * GRACEFUL SHUTDOWN
+ * ======================================================
+ */
+
 async function shutdown(
   signal
 ) {
@@ -58,37 +87,63 @@ async function shutdown(
     `${signal} received. Shutting down...`
   );
 
-  if (server) {
-    server.close(
-      () => {
-        process.exit(0);
-      }
-    );
-
-    return;
+  if (!server) {
+    process.exit(0);
   }
 
-  process.exit(0);
+
+  server.close(
+    error => {
+      if (error) {
+        console.error(
+          'Server shutdown failed:',
+          error
+        );
+
+        process.exit(1);
+      }
+
+      console.log(
+        'AMS API stopped successfully.'
+      );
+
+      process.exit(0);
+    }
+  );
 }
 
 
+/*
+ * ======================================================
+ * PROCESS SIGNALS
+ * ======================================================
+ */
+
 process.on(
   'SIGTERM',
-  () =>
-    shutdown(
+  () => {
+    void shutdown(
       'SIGTERM'
-    )
+    );
+  }
 );
 
 
 process.on(
   'SIGINT',
-  () =>
-    shutdown(
+  () => {
+    void shutdown(
       'SIGINT'
-    )
+    );
+  }
 );
 
+
+/*
+ * ======================================================
+ * UNHANDLED ERRORS
+ * ======================================================
+ */
 
 process.on(
   'unhandledRejection',
@@ -114,4 +169,10 @@ process.on(
 );
 
 
-bootstrap();
+/*
+ * ======================================================
+ * START APPLICATION
+ * ======================================================
+ */
+
+void bootstrap();

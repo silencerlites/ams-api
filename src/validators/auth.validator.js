@@ -14,7 +14,8 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   email: z.email().transform(value => value.trim().toLowerCase()),
-  password: z.string().min(1)
+  password: z.string().min(1),
+  turnstile_token: z.string().min(1, 'Security verification is required.').max(2048)
 });
 
 export const refreshSchema = z.object({

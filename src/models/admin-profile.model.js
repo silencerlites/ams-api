@@ -1,5 +1,4 @@
 import BaseModel from './base.model.js';
-
 export default class AdminProfileModel extends BaseModel {
   constructor({
     admin_id,

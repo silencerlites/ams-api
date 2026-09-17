@@ -1,8 +1,5 @@
-// src/models/user-has-status.model.js
-
 import BaseModel from './base.model.js';
 import { ACCOUNT_STATUS_VALUES } from '../enums/account-status.enum.js';
-
 import { MODEL_TYPE_VALUES } from '../constants/model-types.js';
 
 export default class UserHasStatusModel extends BaseModel {

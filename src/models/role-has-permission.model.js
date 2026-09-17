@@ -1,12 +1,8 @@
 import BaseModel from './base.model.js';
 
 export default class RoleHasPermissionModel extends BaseModel {
-  constructor({
-    role_id,
-    permission_id
-  }) {
+  constructor({ role_id, permission_id }) {
     super();
-
     this.role_id = Number(role_id);
     this.permission_id = Number(permission_id);
   }

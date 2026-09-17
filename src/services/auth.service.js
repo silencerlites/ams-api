@@ -11,7 +11,8 @@ import idGeneratorService from './id-generator.service.js';
 import accountStatusService from './account-status.service.js';
 import loginAttemptService from './login-attempt.service.js';
 import loginOtpService from './login-otp.service.js';
-import mailService from './mail.service.js';
+import mailService from './mail/mail.service.js';
+import turnstileService from './turnstile.service.js';
 
 import adminRepository from '../repositories/admin.repository.js';
 import adminProfileRepository from '../repositories/admin-profile.repository.js';
@@ -486,9 +487,23 @@ class AuthService {
 async login({
   email,
   password,
+  turnstile_token: turnstileToken,
   ipAddress,
   userAgent
 }) {
+   /*
+   * Verify Cloudflare Turnstile before
+   * performing any account lookup or
+   * password validation.
+   */
+  await turnstileService
+    .verify({
+      token:
+        turnstileToken,
+
+      ipAddress
+    });
+    
   const normalizedEmail =
     this.normalizeEmail(
       email

@@ -1,53 +1,28 @@
-import {
-  connectDatabase,
-  disconnectDatabase
-} from '../config/database.js';
-
-import Role
-  from '../models/role.model.js';
-
-import Permission
-  from '../models/permission.model.js';
-
-import RoleHasPermission
-  from '../models/role-has-permission.model.js';
-
-import {
-  RoleEnum,
-  RoleName
-} from '../enums/role.enum.js';
+import { connectDatabase, disconnectDatabase } from '../config/database.js';
+import Role from '../models/role.model.js';
+import Permission from '../models/permission.model.js';
+import RoleHasPermission from '../models/role-has-permission.model.js';
+import { RoleEnum, RoleName } from '../enums/role.enum.js';
 
 const roles = [
   {
     id: RoleEnum.SUPER_ADMIN,
-    name:
-      RoleName[
-        RoleEnum.SUPER_ADMIN
-      ],
+    name: RoleName[RoleEnum.SUPER_ADMIN],
     guard_name: 'api'
   },
   {
     id: RoleEnum.ADMIN,
-    name:
-      RoleName[
-        RoleEnum.ADMIN
-      ],
+    name: RoleName[RoleEnum.ADMIN],
     guard_name: 'api'
   },
   {
     id: RoleEnum.CLIENT,
-    name:
-      RoleName[
-        RoleEnum.CLIENT
-      ],
+    name: RoleName[RoleEnum.CLIENT],
     guard_name: 'api'
   },
   {
     id: RoleEnum.EMP,
-    name:
-      RoleName[
-        RoleEnum.EMP
-      ],
+    name: RoleName[RoleEnum.EMP],
     guard_name: 'api'
   }
 ];
@@ -97,7 +72,6 @@ const permissions = [
 
 async function seed() {
   await connectDatabase();
-
   try {
     for (const role of roles) {
       await Role.findOneAndUpdate(
@@ -114,66 +88,46 @@ async function seed() {
       );
     }
 
-    for (
-      const permission of
-      permissions
-    ) {
-      await Permission
-        .findOneAndUpdate(
-          {
-            id:
-              permission.id
-          },
-          {
-            $set: {
-              ...permission,
-              guard_name:
-                'api'
-            }
-          },
-          {
-            upsert: true,
-            returnDocument: 'after',
+    for (const permission of permissions) {
+      await Permission.findOneAndUpdate(
+        {
+          id: permission.id
+        },
+        {
+          $set: {
+            ...permission,
+            guard_name: 'api'
           }
-        );
+        },
+        {
+          upsert: true,
+          returnDocument: 'after',
+        }
+      );
     }
 
     /*
      * Super Admin gets all permissions.
      */
-    for (
-      const permission of
-      permissions
-    ) {
-      await RoleHasPermission
-        .findOneAndUpdate(
-          {
-            role_id:
-              RoleEnum
-                .SUPER_ADMIN,
-
-            permission_id:
-              permission.id
-          },
-          {
-            $setOnInsert: {
-              role_id:
-                RoleEnum
-                  .SUPER_ADMIN,
-
-              permission_id:
-                permission.id
-            }
-          },
-          {
-            upsert: true
+    for (const permission of permissions) {
+      await RoleHasPermission.findOneAndUpdate(
+        {
+          role_id: RoleEnum.SUPER_ADMIN,
+          permission_id: permission.id
+        },
+        {
+          $setOnInsert: {
+            role_id: RoleEnum.SUPER_ADMIN,
+            permission_id: permission.id
           }
-        );
+        },
+        {
+          upsert: true
+        }
+      );
     }
 
-    console.log(
-      'Authorization seed completed.'
-    );
+    console.log('Authorization seed completed.');
   } finally {
     await disconnectDatabase();
   }

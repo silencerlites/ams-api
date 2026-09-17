@@ -13,7 +13,6 @@ export default class PermissionModel extends BaseModel {
     this.id = Number(id);
     this.name = name.trim();
     this.guard_name = guard_name;
-
     this.created_at = created_at;
     this.updated_at = updated_at;
   }

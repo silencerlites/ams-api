@@ -1,18 +1,10 @@
 import { Router } from 'express';
-
 import authController from '../controllers/auth.controller.js';
-
 import authenticate from '../middleware/authenticate.middleware.js';
 import ensureActive from '../middleware/ensure-active.middleware.js';
-
-import {
-  authRateLimiter,
-  loginRateLimiter
-} from '../middleware/rate-limit.middleware.js';
-
+import { authRateLimiter, loginRateLimiter} from '../middleware/rate-limit.middleware.js';
 
 const router = Router();
-
 
 /**
  * @swagger
@@ -34,12 +26,7 @@ const router = Router();
  *       422:
  *         description: Validation failed.
  */
-router.post(
-  '/register',
-  authRateLimiter,
-  authController.register
-);
-
+router.post('/register', authRateLimiter, authController.register);
 
 /**
  * @swagger
@@ -63,12 +50,7 @@ router.post(
  *       423:
  *         description: Account temporarily locked.
  */
-router.post(
-  '/login',
-  loginRateLimiter,
-  authController.login
-);
-
+router.post('/login', loginRateLimiter, authController.login);
 
 /**
  * @swagger
@@ -92,11 +74,7 @@ router.post(
  *       429:
  *         description: Maximum OTP attempts exceeded.
  */
-router.post(
-  '/verify-login-otp',
-  loginRateLimiter,
-  authController.verifyLoginOtp
-);
+router.post('/verify-login-otp', loginRateLimiter, authController.verifyLoginOtp);
 
 /**
  * @swagger
@@ -121,12 +99,7 @@ router.post(
  *       401:
  *         description: Invalid custom token.
  */
-router.post(
-  '/exchange-token',
-  authRateLimiter,
-  authController.exchangeToken
-);
-
+router.post('/exchange-token', authRateLimiter, authController.exchangeToken);
 
 /**
  * @swagger
@@ -148,12 +121,7 @@ router.post(
  *       429:
  *         description: Resend cooldown active.
  */
-router.post(
-  '/resend-login-otp',
-  loginRateLimiter,
-  authController.resendLoginOtp
-);
-
+router.post('/resend-login-otp', loginRateLimiter, authController.resendLoginOtp);
 
 /**
  * @swagger
@@ -173,12 +141,7 @@ router.post(
  *       422:
  *         description: Validation failed.
  */
-router.post(
-  '/forgot-password',
-  authRateLimiter,
-  authController.forgotPassword
-);
-
+router.post('/forgot-password', authRateLimiter, authController.forgotPassword);
 
 /**
  * @swagger
@@ -200,12 +163,7 @@ router.post(
  *       422:
  *         description: Validation failed.
  */
-router.post(
-  '/reset-password',
-  authRateLimiter,
-  authController.resetPassword
-);
-
+router.post('/reset-password', authRateLimiter, authController.resetPassword);
 
 /**
  * @swagger
@@ -231,13 +189,7 @@ router.post(
  *       422:
  *         description: Invalid current password.
  */
-router.post(
-  '/change-password',
-  authenticate,
-  ensureActive,
-  authController.changePassword
-);
-
+router.post('/change-password', authenticate, ensureActive, authController.changePassword);
 
 /**
  * @swagger
@@ -254,12 +206,7 @@ router.post(
  *       401:
  *         description: Authentication required.
  */
-router.post(
-  '/logout',
-  authenticate,
-  authController.logout
-);
-
+router.post('/logout', authenticate, authController.logout);
 
 /**
  * @swagger
@@ -275,12 +222,7 @@ router.post(
  *       401:
  *         description: Authentication required.
  */
-router.post(
-  '/logout-all',
-  authenticate,
-  authController.logoutAll
-);
-
+router.post('/logout-all', authenticate, authController.logoutAll);
 
 /**
  * @swagger
@@ -308,12 +250,7 @@ router.post(
  *       422:
  *         description: Validation failed.
  */
-router.post(
-  '/verify-email',
-  authRateLimiter,
-  authController.verifyEmail
-);
-
+router.post('/verify-email', authRateLimiter, authController.verifyEmail);
 
 /**
  * @swagger
@@ -333,12 +270,7 @@ router.post(
  *       422:
  *         description: Validation failed.
  */
-router.post(
-  '/resend-verification',
-  authRateLimiter,
-  authController.resendVerification
-);
-
+router.post('/resend-verification', authRateLimiter,authController.resendVerification);
 
 /**
  * @swagger
@@ -358,12 +290,6 @@ router.post(
  *       404:
  *         description: Account not found.
  */
-router.get(
-  '/view',
-  authenticate,
-  ensureActive,
-  authController.view
-);
-
+router.get('/view', authenticate, ensureActive, authController.view);
 
 export default router;

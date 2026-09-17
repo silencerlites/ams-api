@@ -1,7 +1,7 @@
 import Admin from '../models/admin.model.js';
 import AdminProfile from '../models/admin-profile.model.js';
 import accountStatusService from '../services/account-status.service.js';
-import mailService from '../services/mail.service.js';
+import mailService from '../services/mail/mail.service.js';
 import { accountApprovedTemplate } from '../templates/account-approved.template.js';
 import { MODEL_TYPES } from '../constants/model-types.js';
 import env from '../config/env.js';

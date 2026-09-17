@@ -1,51 +1,36 @@
 import swaggerJsdoc from 'swagger-jsdoc';
-
 import env from './env.js';
 
 const options = {
     definition: {
         openapi: '3.0.3',
-
         info: {
             title: 'SRJJ AMS API',
             version: '1.0.0',
-
-            description:
-                'API documentation for the SRJJ Accounting Management System.'
+            description: 'API documentation for the SRJJ Accounting Management System.'
         },
 
         servers: [
             {
-                url:
-                    env.apiUrl ||
-                    'http://localhost:5000',
-
-                description:
-                    env.nodeEnv === 'production'
-                        ? 'Production Server'
-                        : env.nodeEnv === 'staging'
-                            ? 'Staging Server'
-                            : 'Development Server'
+                url: env.apiUrl || 'http://localhost:5000',
+                description: env.nodeEnv === 'production' ? 'Production Server' : env.nodeEnv === 'staging' ? 'Staging Server' : 'Development Server'
             }
         ],
 
         tags: [
             {
                 name: 'System',
-                description:
-                    'System and health endpoints'
+                description: 'System and health endpoints'
             },
 
             {
                 name: 'Authentication',
-                description:
-                    'Authentication endpoints'
+                description: 'Authentication endpoints'
             },
 
             {
                 name: 'Password',
-                description:
-                    'Password management endpoints'
+                description: 'Password management endpoints'
             }
         ],
 
@@ -62,12 +47,7 @@ const options = {
                 RegisterRequest: {
                     type: 'object',
 
-                    required: [
-                        'email',
-                        'password',
-                        'first_name',
-                        'last_name'
-                    ],
+                    required: ['email', 'password', 'first_name', 'last_name'],
 
                     properties: {
                         email: {
@@ -108,10 +88,7 @@ const options = {
                 LoginRequest: {
                     type: 'object',
 
-                    required: [
-                        'email',
-                        'password'
-                    ],
+                    required: ['email', 'password'],
 
                     properties: {
                         email: {
@@ -132,10 +109,7 @@ const options = {
                 VerifyOtpRequest: {
                     type: 'object',
 
-                    required: [
-                        'challenge_id',
-                        'otp'
-                    ],
+                    required: ['challenge_id', 'otp'],
 
                     properties: {
                         challenge_id: {
@@ -154,9 +128,7 @@ const options = {
                 OtpChallengeRequest: {
                     type: 'object',
 
-                    required: [
-                        'challenge_id'
-                    ],
+                    required: ['challenge_id'],
 
                     properties: {
                         challenge_id: {
@@ -170,9 +142,7 @@ const options = {
                 ForgotPasswordRequest: {
                     type: 'object',
 
-                    required: [
-                        'email'
-                    ],
+                    required: ['email'],
 
                     properties: {
                         email: {
@@ -187,11 +157,7 @@ const options = {
                 ResetPasswordRequest: {
                     type: 'object',
 
-                    required: [
-                        'token',
-                        'password',
-                        'password_confirmation'
-                    ],
+                    required: ['token', 'password', 'password_confirmation'],
 
                     properties: {
                         token: {
@@ -216,11 +182,7 @@ const options = {
                 ChangePasswordRequest: {
                     type: 'object',
 
-                    required: [
-                        'current_password',
-                        'password',
-                        'password_confirmation'
-                    ],
+                    required: ['current_password', 'password', 'password_confirmation'],
 
                     properties: {
                         current_password: {
@@ -244,9 +206,7 @@ const options = {
                 RefreshTokenRequest: {
                     type: 'object',
 
-                    required: [
-                        'refresh_token'
-                    ],
+                    required: ['refresh_token'],
 
                     properties: {
                         refresh_token: {
@@ -276,10 +236,7 @@ const options = {
                 LoginRequest: {
                     type: 'object',
 
-                    required: [
-                        'email',
-                        'password'
-                    ],
+                    required: ['email', 'password'],
 
                     properties: {
                         email: {
@@ -301,10 +258,7 @@ const options = {
                 VerifyOtpRequest: {
                     type: 'object',
 
-                    required: [
-                        'challenge_id',
-                        'otp'
-                    ],
+                    required: ['challenge_id', 'otp'],
 
                     properties: {
                         challenge_id: {
@@ -322,9 +276,7 @@ const options = {
                 ForgotPasswordRequest: {
                     type: 'object',
 
-                    required: [
-                        'email'
-                    ],
+                    required: ['email'],
 
                     properties: {
                         email: {
@@ -339,11 +291,7 @@ const options = {
                 ResetPasswordRequest: {
                     type: 'object',
 
-                    required: [
-                        'token',
-                        'password',
-                        'password_confirmation'
-                    ],
+                    required: ['token', 'password', 'password_confirmation'],
 
                     properties: {
                         token: {
@@ -353,15 +301,13 @@ const options = {
                         password: {
                             type: 'string',
                             format: 'password',
-                            example:
-                                'NewPassword@123'
+                            example: 'NewPassword@123'
                         },
 
                         password_confirmation: {
                             type: 'string',
                             format: 'password',
-                            example:
-                                'NewPassword@123'
+                            example: 'NewPassword@123'
                         }
                     }
                 },
@@ -369,11 +315,7 @@ const options = {
                 ChangePasswordRequest: {
                     type: 'object',
 
-                    required: [
-                        'current_password',
-                        'password',
-                        'password_confirmation'
-                    ],
+                    required: ['current_password', 'password', 'password_confirmation'],
 
                     properties: {
                         current_password: {
@@ -396,9 +338,7 @@ const options = {
                 RefreshTokenRequest: {
                     type: 'object',
 
-                    required: [
-                        'refresh_token'
-                    ],
+                    required: ['refresh_token'],
 
                     properties: {
                         refresh_token: {
@@ -410,12 +350,8 @@ const options = {
         }
     },
 
-    apis: [
-        './src/routes/*.js'
-    ]
+    apis: ['./src/routes/*.js']
 };
 
-const swaggerSpec =
-    swaggerJsdoc(options);
-
+const swaggerSpec = swaggerJsdoc(options);
 export default swaggerSpec;

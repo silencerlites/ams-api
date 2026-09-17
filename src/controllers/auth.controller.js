@@ -1,9 +1,4 @@
 import authService from '../services/auth.service.js';
-import loginOtpService from '../services/login-otp.service.js';
-
-import adminRepository from '../repositories/admin.repository.js';
-import adminProfileRepository from '../repositories/admin-profile.repository.js';
-
 import {
   registerSchema,
   loginSchema,
@@ -14,24 +9,18 @@ import {
   changePasswordSchema,
   verifyEmailSchema
 } from '../validators/auth.validator.js';
+import turnstileService from '../services/turnstile.service.js';
 
 import asyncHandler from '../utils/async-handler.js';
 import { success } from '../utils/response.js';
 import AppError from '../errors/app-error.js';
-import env from '../config/env.js';
 
 
 const validate = (schema, payload) => {
-  const result =
-    schema.safeParse(payload);
+  const result = schema.safeParse(payload);
 
   if (!result.success) {
-    throw new AppError(
-      'Validation failed.',
-      422,
-      'VALIDATION_ERROR',
-      result.error.flatten()
-    );
+    throw new AppError('Validation failed.', 422, 'VALIDATION_ERROR', result.error.flatten());
   }
 
   return result.data;
@@ -44,28 +33,16 @@ const validate = (schema, payload) => {
  * ======================================================
  */
 
-const register = asyncHandler(
-  async (req, res) => {
-    const data =
-      validate(
-        registerSchema,
-        req.body
-      );
+const register = asyncHandler(async (req, res) => {
+  const data = validate(registerSchema, req.body);
+  const result = await authService.register(data);
 
-    const result =
-      await authService.register(
-        data
-      );
-
-    return success(res, {
-      status: 201,
-
-      message:
-        'Registration successful. Verify your email and wait for administrator approval.',
-
-      data: result
-    });
-  }
+  return success(res, {
+    status: 201,
+    message: 'Registration successful. Verify your email and wait for administrator approval.',
+    data: result
+  });
+}
 );
 
 
@@ -75,33 +52,20 @@ const register = asyncHandler(
  * ======================================================
  */
 
-const login = asyncHandler(
-  async (req, res) => {
-    const data =
-      validate(
-        loginSchema,
-        req.body
-      );
+const login = asyncHandler(async (req, res) => {
+  const data = validate(loginSchema, req.body);
 
-    const result =
-      await authService.login({
-        ...data,
+  const result = await authService.login({
+    ...data,
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent')
+  });
 
-        ipAddress:
-          req.ip,
-
-        userAgent:
-          req.get('user-agent')
-      });
-
-    return success(res, {
-      message:
-        'Login successful.',
-
-      data:
-        result
-    });
-  }
+  return success(res, {
+    message: 'Login successful.',
+    data: result
+  });
+}
 );
 
 
@@ -111,32 +75,19 @@ const login = asyncHandler(
  * ======================================================
  */
 
-const verifyLoginOtp = asyncHandler(
-  async (req, res) => {
-    const data =
-      validate(
-        verifyLoginOtpSchema,
-        req.body
-      );
+const verifyLoginOtp = asyncHandler(async (req, res) => {
+  const data = validate(verifyLoginOtpSchema, req.body)
 
-    const result =
-      await authService
-        .verifyLoginOtp({
-          challengeId:
-            data.challenge_id,
+  const result = await authService.verifyLoginOtp({
+    challengeId: data.challenge_id,
+    otp: data.otp
+  })
 
-          otp:
-            data.otp
-        });
-
-    return success(res, {
-      message:
-        'Login successful.',
-
-      data:
-        result
-    });
-  }
+  return success(res, {
+    message: 'Login successful.',
+    data: result
+  })
+}
 );
 
 
@@ -146,41 +97,20 @@ const verifyLoginOtp = asyncHandler(
  * ======================================================
  */
 
-const resendLoginOtp =
-  asyncHandler(
-    async (req, res) => {
-      const data =
-        validate(
-          resendLoginOtpSchema,
-          req.body
-        );
+const resendLoginOtp = asyncHandler(async (req, res) => {
+  const data = validate(resendLoginOtpSchema, req.body);
 
+  const result = await authService.resendLoginOtp({
+    challengeId: data.challenge_id,
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent')
+  });
 
-      const result =
-        await authService
-          .resendLoginOtp({
-            challengeId:
-              data.challenge_id,
-
-            ipAddress:
-              req.ip,
-
-            userAgent:
-              req.get(
-                'user-agent'
-              )
-          });
-
-
-      return success(res, {
-        message:
-          'A new OTP has been sent to your email address.',
-
-        data:
-          result
-      });
-    }
-  );
+  return success(res, {
+    message: 'A new OTP has been sent to your email address.',
+    data: result
+  });
+});
 
 
 /*
@@ -189,44 +119,25 @@ const resendLoginOtp =
  * ======================================================
  */
 
-const forgotPassword = asyncHandler(
-  async (req, res) => {
-    const data =
-      validate(
-        forgotPasswordSchema,
-        req.body
-      );
+const forgotPassword = asyncHandler(async (req, res) => {
+  const data = validate(forgotPasswordSchema, req.body);
 
-    try {
-      await authService
-        .sendPasswordReset({
-          email:
-            data.email,
-
-          ipAddress:
-            req.ip,
-
-          userAgent:
-            req.get(
-              'user-agent'
-            )
-        });
-
-    } catch (error) {
-      /*
-       * Prevent account enumeration.
-       */
-      console.error(
-        'Password reset request failed:',
-        error
-      );
-    }
-
-    return success(res, {
-      message:
-        'If the account exists, password reset instructions have been sent to the registered email address.'
+  try {
+    await authService.sendPasswordReset({
+      email: data.email,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
     });
+
+  } catch (error) {
+    /*
+     * Prevent account enumeration.
+     */
+    console.error('Password reset request failed:', error);
   }
+
+  return success(res, { message: 'If the account exists, password reset instructions have been sent to the registered email address.' });
+}
 );
 
 
@@ -236,28 +147,15 @@ const forgotPassword = asyncHandler(
  * ======================================================
  */
 
-const resetPassword = asyncHandler(
-  async (req, res) => {
-    const data =
-      validate(
-        resetPasswordSchema,
-        req.body
-      );
+const resetPassword = asyncHandler(async (req, res) => {
+  const data = validate(resetPasswordSchema, req.body);
+  await authService.resetPassword({
+    oobCode: data.token,
+    newPassword: data.password
+  });
 
-    await authService
-      .resetPassword({
-        oobCode:
-          data.token,
-
-        newPassword:
-          data.password
-      });
-
-    return success(res, {
-      message:
-        'Password reset successfully. Please login using your new password.'
-    });
-  }
+  return success(res, { message: 'Password reset successfully. Please login using your new password.' });
+}
 );
 
 
@@ -267,39 +165,21 @@ const resetPassword = asyncHandler(
  * ======================================================
  */
 
-const changePassword = asyncHandler(
-  async (req, res) => {
-    const data =
-      validate(
-        changePasswordSchema,
-        req.body
-      );
+const changePassword = asyncHandler(async (req, res) => {
+  const data = validate(changePasswordSchema, req.body);
 
-    if (!req.auth?.uid) {
-      throw new AppError(
-        'Authentication required.',
-        401,
-        'AUTHENTICATION_REQUIRED'
-      );
-    }
-
-    await authService
-      .changePassword({
-        uid:
-          req.auth.uid,
-
-        currentPassword:
-          data.current_password,
-
-        newPassword:
-          data.password
-      });
-
-    return success(res, {
-      message:
-        'Password changed successfully. Please login again.'
-    });
+  if (!req.auth?.uid) {
+    throw new AppError('Authentication required.', 401, 'AUTHENTICATION_REQUIRED');
   }
+
+  await authService.changePassword({
+    uid: req.auth.uid,
+    currentPassword: data.current_password,
+    newPassword: data.password
+  });
+
+  return success(res, { message: 'Password changed successfully. Please login again.' });
+}
 );
 
 
@@ -309,24 +189,12 @@ const changePassword = asyncHandler(
  * ======================================================
  */
 
-const verifyEmail = asyncHandler(
-  async (req, res) => {
-    const data =
-      validate(
-        verifyEmailSchema,
-        req.body
-      );
+const verifyEmail = asyncHandler(async (req, res) => {
+  const data = validate(verifyEmailSchema, req.body);
+  await authService.verifyEmail(data.oob_code);
 
-    await authService
-      .verifyEmail(
-        data.oob_code
-      );
-
-    return success(res, {
-      message:
-        'Email verified successfully. Your account is awaiting administrator approval.'
-    });
-  }
+  return success(res, { message: 'Email verified successfully. Your account is awaiting administrator approval.' });
+}
 );
 
 /*
@@ -335,39 +203,23 @@ const verifyEmail = asyncHandler(
  * ======================================================
  */
 
-const resendVerification = asyncHandler(
-  async (req, res) => {
-    const data =
-      validate(
-        loginSchema,
-        req.body
-      );
+const resendVerification = asyncHandler(async (req, res) => {
+  const data = validate(loginSchema, req.body);
 
-    try {
-      await authService
-        .resendVerification({
-          email:
-            data.email,
-
-          password:
-            data.password
-        });
-    } catch (error) {
-      /*
-       * Prevent account enumeration.
-       */
-      console.error(
-        'Verification resend failed:',
-        error.code ||
-          error.message
-      );
-    }
-
-    return success(res, {
-      message:
-        'If the account exists and requires verification, a verification email has been sent.'
+  try {
+    await authService.resendVerification({
+      email: data.email,
+      password: data.password
     });
+  } catch (error) {
+    /*
+     * Prevent account enumeration.
+     */
+    console.error('Verification resend failed:', error.code || error.message);
   }
+
+  return success(res, { message: 'If the account exists and requires verification, a verification email has been sent.' });
+}
 );
 
 
@@ -377,26 +229,18 @@ const resendVerification = asyncHandler(
  * ======================================================
  */
 
-const logout = asyncHandler(
-  async (req, res) => {
-    if (!req.auth?.uid) {
-      throw new AppError(
-        'Authentication required.',
-        401,
-        'AUTHENTICATION_REQUIRED'
-      );
-    }
-
-    /*
-     * Normal logout is performed
-     * client-side using Firebase signOut().
-     */
-
-    return success(res, {
-      message:
-        'Logout successful.'
-    });
+const logout = asyncHandler(async (req, res) => {
+  if (!req.auth?.uid) {
+    throw new AppError('Authentication required.', 401, 'AUTHENTICATION_REQUIRED');
   }
+
+  /*
+   * Normal logout is performed
+   * client-side using Firebase signOut().
+   */
+
+  return success(res, { message: 'Logout successful.' });
+}
 );
 
 
@@ -406,26 +250,17 @@ const logout = asyncHandler(
  * ======================================================
  */
 
-const logoutAll = asyncHandler(
-  async (req, res) => {
-    if (!req.auth?.uid) {
-      throw new AppError(
-        'Authentication required.',
-        401,
-        'AUTHENTICATION_REQUIRED'
-      );
-    }
-
-    await authService
-      .logoutAll(
-        req.auth.uid
-      );
-
-    return success(res, {
-      message:
-        'Logged out from all sessions.'
-    });
+const logoutAll = asyncHandler(async (req, res) => {
+  if (!req.auth?.uid) {
+    throw new AppError('Authentication required.', 401, 'AUTHENTICATION_REQUIRED');
   }
+
+  await authService.logoutAll(req.auth.uid);
+
+  return success(res, {
+    message: 'Logged out from all sessions.'
+  });
+}
 );
 
 
@@ -435,64 +270,30 @@ const logoutAll = asyncHandler(
  * ======================================================
  */
 
-const view = asyncHandler(
-  async (req, res) => {
-    const result =
-      await authService.view({
-        uid:
-          req.auth.uid
-      });
+const view = asyncHandler(async (req, res) => {
+  const result = await authService.view({ uid: req.auth.uid });
 
-    return success(res, {
-      message:
-        'Account retrieved successfully.',
-
-      data:
-        result
-    });
-  }
+  return success(res, {
+    message: 'Account retrieved successfully.',
+    data: result
+  });
+}
 );
 
-const exchangeToken =
-  asyncHandler(
-    async (
-      req,
-      res
-    ) => {
-      const {
-        custom_token
-      } =
-        req.body;
+const exchangeToken = asyncHandler(async (req, res) => {
+  const { custom_token } = req.body;
 
+  if (!custom_token) {
+    throw new AppError('Custom token is required.', 422, 'VALIDATION_ERROR');
+  }
 
-      if (!custom_token) {
-        throw new AppError(
-          'Custom token is required.',
-          422,
-          'VALIDATION_ERROR'
-        );
-      }
+  const result = await authService.exchangeCustomToken(custom_token);
 
-
-      const result =
-        await authService
-          .exchangeCustomToken(
-            custom_token
-          );
-
-
-      return success(
-        res,
-        {
-          message:
-            'Firebase token exchanged successfully.',
-
-          data:
-            result
-        }
-      );
-    }
-  );
+  return success(res, {
+    message: 'Firebase token exchanged successfully.',
+    data: result
+  });
+});
 
 
 export default {
